@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def quasi_steady_flap(params):
     """
     Python translation of your MATLAB quasi_steady_flap(params) function.
@@ -7,27 +8,27 @@ def quasi_steady_flap(params):
     pitch angle, stroke kinematics, etc.
     """
 
-    rho   = params["rho"]
-    S     = params["S"]
-    c     = params["c"]
-    f     = params["f"]
+    rho = params["rho"]
+    S = params["S"]
+    c = params["c"]
+    f = params["f"]
 
-    stroke_amp  = params["stroke_amp"]
-    pitch_amp   = params["pitch_amp"]        # radians
+    stroke_amp = params["stroke_amp"]
+    pitch_amp = params["pitch_amp"]        # radians
     pitch_phase = params["pitch_phase"]      # radians
 
     AR = (S / c) / c
     CL_alpha = params["CL_alpha"] / (1 + 2 * np.pi / (np.pi * AR))
-    Uref     = params["Uref"]
+    Uref = params["Uref"]
 
-    dt   = params["dt"]
+    dt = params["dt"]
     t_end = params["t_end"]
     t = np.arange(0, t_end + dt, dt)
 
     omega = 2 * np.pi * f
 
-    K_am     = params["K_am"]
-    CD0      = params["CD0"]
+    K_am = params["K_am"]
+    CD0 = params["CD0"]
     CD_alpha = params["CD_alpha"]
 
     # -------------------------
@@ -54,7 +55,7 @@ def quasi_steady_flap(params):
     CL_trans_LEV = CL_trans * S_d
 
     k_rot = 0.1
-    CL_rot = k_rot * (np.pi/2) * (c / U) * alpha_dot
+    CL_rot = k_rot * (np.pi / 2) * (c / U) * alpha_dot
 
     CL_total = CL_trans_LEV + CL_rot
 
@@ -69,7 +70,7 @@ def quasi_steady_flap(params):
     q = 0.5 * rho * U**2
 
     L_trans = q * S * CL_trans_LEV
-    L_rot   = q * S * CL_rot
+    L_rot = q * S * CL_rot
     L_added = K_am * 0.25 * np.pi * rho * c**2 * S * alpha_ddot
 
     L = L_trans + L_rot + L_added
