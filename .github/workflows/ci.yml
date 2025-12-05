@@ -32,7 +32,7 @@ jobs:
         dockerfile: Dockerfile
 
     - name: Bandit Security Scan (Python code)
-      working-directory ${{ github.workspace }}
+      working-directory: ${{ github.workspace }}
       run: |
         pip install bandit
         bandit -r .
