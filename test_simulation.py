@@ -1,4 +1,4 @@
-# bandit: ignore=B101
+# nosec
 
 import numpy as np
 from physics import quasi_steady_flap
