@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Lint Python code (flake8)
         run: |
@@ -86,7 +86,7 @@ jobs:
         run: docker save wing-sim | gzip > wing-sim.tar.gz
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wing-sim-container
           path: wing-sim.tar.gz
