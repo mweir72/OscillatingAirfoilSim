@@ -18,7 +18,7 @@ async function runSingle() {
     const req = {
         f: inp.f,
         stroke_amp: inp.stroke,
-        pitch_amp: inp.pitch_deg * Math.PI / 180, // convert to radians
+        pitch_amp: inp.pitch_deg * Math.PI / 180,
         t_end: 0.02
     };
 
@@ -38,6 +38,7 @@ async function runPitchSweep() {
 
     const req = {
         sweep_type: "pitch",
+        base: inp.pitch_deg,  // center value of sweep
         freq_hz: inp.f,
         pitch_deg: inp.pitch_deg,
         step: inp.step,
@@ -61,6 +62,7 @@ async function runFreqSweep() {
 
     const req = {
         sweep_type: "frequency",
+        base: inp.f,  // center value of sweep
         freq_hz: inp.f,
         pitch_deg: inp.pitch_deg,
         step: inp.step,

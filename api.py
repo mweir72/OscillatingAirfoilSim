@@ -2,7 +2,6 @@ import io
 import base64
 import numpy as np
 import matplotlib.pyplot as plt
-
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,6 +9,9 @@ from pydantic import BaseModel
 
 from physics import quasi_steady_flap
 from run_simulation import base_params
+
+# Set backend AFTER imports to avoid flake8 E402
+plt.switch_backend("Agg")
 
 
 # ------------------------- FastAPI Setup -------------------------
@@ -34,6 +36,7 @@ class SimRequest(BaseModel):
 
 class SweepStepsRequest(BaseModel):
     sweep_type: str          # "pitch" or "frequency"
+    base: float              # base value (deg for pitch, Hz for freq)
     freq_hz: float
     pitch_deg: float
     step: float
@@ -41,7 +44,7 @@ class SweepStepsRequest(BaseModel):
     t_end: float
 
 
-# ------------------------- Helper Function -------------------------
+# ------------------------- Helper -------------------------
 
 def fig_to_base64(fig):
     """Convert a Matplotlib figure to base64 PNG string."""
@@ -57,16 +60,11 @@ def fig_to_base64(fig):
 
 @app.get("/")
 def serve_ui():
-    """Serve the web-based UI."""
     return FileResponse("static/index.html")
 
 
 @app.post("/simulate_plot")
 def simulate_plot(req: SimRequest):
-    """
-    Run a single simulation and return a base64-encoded plot.
-    """
-
     params = base_params.copy()
     params["f"] = req.f
     params["stroke_amp"] = req.stroke_amp
@@ -75,7 +73,7 @@ def simulate_plot(req: SimRequest):
 
     result = quasi_steady_flap(params)
 
-    fig, axs = plt.subplots(3, 2, figsize=(10, 10))
+    fig, axs = plt.subplots(3, 2, figsize=(10, 10), dpi=90)
 
     axs[0, 0].plot(result["t"], result["L"])
     axs[0, 0].set_title("Lift")
@@ -99,18 +97,11 @@ def simulate_plot(req: SimRequest):
         ax.set_xlabel("Time (s)")
         ax.grid(True)
 
-    img_b64 = fig_to_base64(fig)
-
-    return {"plot_base64": img_b64}
+    return {"plot_base64": fig_to_base64(fig)}
 
 
 @app.post("/sweep_steps")
 def sweep_steps(req: SweepStepsRequest):
-    """
-    Perform a 5-step sweep (±2 step, ±1 step, base) for either
-    pitch or frequency and return a multi-curve plot.
-    """
-
     values = [
         req.base - 2 * req.step,
         req.base - req.step,
@@ -119,7 +110,7 @@ def sweep_steps(req: SweepStepsRequest):
         req.base + 2 * req.step
     ]
 
-    fig, axs = plt.subplots(3, 2, figsize=(10, 10))
+    fig, axs = plt.subplots(3, 2, figsize=(10, 10), dpi=90)
     colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(values)))
 
     for idx, val in enumerate(values):
@@ -138,17 +129,14 @@ def sweep_steps(req: SweepStepsRequest):
         else:
             return {"error": "sweep_type must be 'pitch' or 'frequency'"}
 
-        result = quasi_steady_flap(params)
+        r = quasi_steady_flap(params)
 
-        axs[0, 0].plot(
-            result["t"], result["L"],
-            color=colors[idx], label=f"{val}"
-        )
-        axs[0, 1].plot(result["t"], result["D"], color=colors[idx])
-        axs[1, 0].plot(result["t"], result["P"], color=colors[idx])
-        axs[1, 1].plot(result["t"], result["eta"], color=colors[idx])
-        axs[2, 0].plot(result["t"], result["theta_deg"], color=colors[idx])
-        axs[2, 1].plot(result["t"], result["x_pos"], color=colors[idx])
+        axs[0, 0].plot(r["t"], r["L"], color=colors[idx], label=f"{val}")
+        axs[0, 1].plot(r["t"], r["D"], color=colors[idx])
+        axs[1, 0].plot(r["t"], r["P"], color=colors[idx])
+        axs[1, 1].plot(r["t"], r["eta"], color=colors[idx])
+        axs[2, 0].plot(r["t"], r["theta_deg"], color=colors[idx])
+        axs[2, 1].plot(r["t"], r["x_pos"], color=colors[idx])
 
     axs[0, 0].set_title("Lift")
     axs[0, 1].set_title("Drag")
@@ -161,9 +149,6 @@ def sweep_steps(req: SweepStepsRequest):
         ax.set_xlabel("Time (s)")
         ax.grid(True)
 
-    axs[0, 0].legend(
-        title=f"{req.sweep_type.capitalize()} Sweep"
-    )
+    axs[0, 0].legend(title=f"{req.sweep_type.capitalize()} Sweep")
 
-    img_b64 = fig_to_base64(fig)
-    return {"plot_base64": img_b64}
+    return {"plot_base64": fig_to_base64(fig)}
