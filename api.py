@@ -1,10 +1,7 @@
 import io
 import base64
-
-import matplotlib
-matplotlib.use("Agg")  # headless backend for server use
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -15,127 +12,143 @@ from physics import quasi_steady_flap
 from run_simulation import base_params
 
 
-app = FastAPI(title="Bug Wing Simulator API")
+# ------------------------- FastAPI Setup -------------------------
 
-# Serve the static web UI under /static and index at /
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app = FastAPI()
+
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
 
 
-@app.get("/")
-def root():
-    """Serve the main website."""
-    return FileResponse("static/index.html")
-
+# ------------------------- Data Models -------------------------
 
 class SimRequest(BaseModel):
-    """Single-run simulation request.
-
-    NOTE: pitch_amp is in radians.
-    Your UI can send degrees converted to radians on the client side.
-    """
-    f: float = 150.0
-    stroke_amp: float = 0.01
-    pitch_amp: float = 0.785  # 45 deg in radians
-    t_end: float = 0.02
+    f: float
+    stroke_amp: float
+    pitch_amp: float
+    t_end: float
 
 
 class SweepStepsRequest(BaseModel):
-    """5-step sweep request around a nominal operating point.
+    sweep_type: str          # "pitch" or "frequency"
+    freq_hz: float
+    pitch_deg: float
+    step: float
+    stroke_amp: float
+    t_end: float
 
-    sweep_type:
-        "pitch"      -> vary pitch (deg) around pitch_deg, hold freq = freq_hz
-        "frequency"  -> vary frequency (Hz) around freq_hz, hold pitch = pitch_deg
-    """
-    sweep_type: str  # "pitch" or "frequency"
-    freq_hz: float = 150.0       # nominal frequency (Hz)
-    pitch_deg: float = 45.0      # nominal pitch (deg)
-    step: float = 15.0           # step in deg (for pitch) or Hz (for freq)
-    stroke_amp: float = 0.01
-    t_end: float = 0.02
+
+# ------------------------- Helper Function -------------------------
+
+def fig_to_base64(fig):
+    """Convert a Matplotlib figure to base64 PNG string."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    img_str = base64.b64encode(buf.read()).decode("utf-8")
+    plt.close(fig)
+    return img_str
+
+
+# ------------------------- Endpoints -------------------------
+
+@app.get("/")
+def serve_ui():
+    """Serve the web-based UI."""
+    return FileResponse("static/index.html")
 
 
 @app.post("/simulate_plot")
 def simulate_plot(req: SimRequest):
-    """Run a single simulation and return a 6-panel base64 PNG."""
+    """
+    Run a single simulation and return a base64-encoded plot.
+    """
+
     params = base_params.copy()
     params["f"] = req.f
     params["stroke_amp"] = req.stroke_amp
-    params["pitch_amp"] = req.pitch_amp  # already in radians
+    params["pitch_amp"] = req.pitch_amp
     params["t_end"] = req.t_end
 
-    r = quasi_steady_flap(params)
+    result = quasi_steady_flap(params)
 
     fig, axs = plt.subplots(3, 2, figsize=(10, 10))
 
-    axs[0, 0].plot(r["t"], r["L"])
-    axs[0, 0].set_title("Lift vs Time")
+    axs[0, 0].plot(result["t"], result["L"])
+    axs[0, 0].set_title("Lift")
 
-    axs[0, 1].plot(r["t"], r["D"])
-    axs[0, 1].set_title("Drag vs Time")
+    axs[0, 1].plot(result["t"], result["D"])
+    axs[0, 1].set_title("Drag")
 
-    axs[1, 0].plot(r["t"], r["P"])
-    axs[1, 0].set_title("Power vs Time")
+    axs[1, 0].plot(result["t"], result["P"])
+    axs[1, 0].set_title("Power")
 
-    axs[1, 1].plot(r["t"], r["eta"])
+    axs[1, 1].plot(result["t"], result["eta"])
     axs[1, 1].set_title("Efficiency")
 
-    axs[2, 0].plot(r["t"], r["theta_deg"])
+    axs[2, 0].plot(result["t"], result["theta_deg"])
     axs[2, 0].set_title("Pitch Angle")
 
-    axs[2, 1].plot(r["t"], r["x_pos"])
+    axs[2, 1].plot(result["t"], result["x_pos"])
     axs[2, 1].set_title("Stroke Position")
 
     for ax in axs.flat:
         ax.set_xlabel("Time (s)")
         ax.grid(True)
 
-    buf = io.BytesIO()
-    plt.tight_layout()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    plt.close(fig)
+    img_b64 = fig_to_base64(fig)
 
-    img_base64 = base64.b64encode(buf.read()).decode("utf-8")
-    return {"plot_base64": img_base64}
+    return {"plot_base64": img_b64}
 
 
 @app.post("/sweep_steps")
 def sweep_steps(req: SweepStepsRequest):
-    """5-step sweep: base ± step, base ± 2*step, for pitch or frequency."""
-    sweep_type = req.sweep_type.lower()
-    if sweep_type not in ("pitch", "frequency"):
-        return {"error": "sweep_type must be 'pitch' or 'frequency'"}
+    """
+    Perform a 5-step sweep (±2 step, ±1 step, base) for either
+    pitch or frequency and return a multi-curve plot.
+    """
 
-    # Build the 5 sweep values
-    offsets = [-2, -1, 0, 1, 2]
-
-    if sweep_type == "pitch":
-        pitch_vals_deg = [req.pitch_deg + k * req.step for k in offsets]
-        freq_vals_hz = [req.freq_hz] * len(pitch_vals_deg)
-    else:  # "frequency"
-        freq_vals_hz = [req.freq_hz + k * req.step for k in offsets]
-        pitch_vals_deg = [req.pitch_deg] * len(freq_vals_hz)
+    values = [
+        req.base - 2 * req.step,
+        req.base - req.step,
+        req.base,
+        req.base + req.step,
+        req.base + 2 * req.step
+    ]
 
     fig, axs = plt.subplots(3, 2, figsize=(10, 10))
-    colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(freq_vals_hz)))
+    colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(values)))
 
-    for idx, (f_hz, pitch_deg) in enumerate(zip(freq_vals_hz, pitch_vals_deg)):
+    for idx, val in enumerate(values):
         params = base_params.copy()
-        params["t_end"] = req.t_end
         params["stroke_amp"] = req.stroke_amp
-        params["f"] = f_hz
-        params["pitch_amp"] = np.deg2rad(pitch_deg)
+        params["t_end"] = req.t_end
 
-        r = quasi_steady_flap(params)
+        if req.sweep_type == "pitch":
+            params["pitch_amp"] = np.deg2rad(val)
+            params["f"] = req.freq_hz
 
-        label = f"{pitch_deg:.1f} deg" if sweep_type == "pitch" else f"{f_hz:.1f} Hz"
+        elif req.sweep_type == "frequency":
+            params["pitch_amp"] = np.deg2rad(req.pitch_deg)
+            params["f"] = val
 
-        axs[0, 0].plot(r["t"], r["L"], color=colors[idx], label=label)
-        axs[0, 1].plot(r["t"], r["D"], color=colors[idx])
-        axs[1, 0].plot(r["t"], r["P"], color=colors[idx])
-        axs[1, 1].plot(r["t"], r["eta"], color=colors[idx])
-        axs[2, 0].plot(r["t"], r["theta_deg"], color=colors[idx])
-        axs[2, 1].plot(r["t"], r["x_pos"], color=colors[idx])
+        else:
+            return {"error": "sweep_type must be 'pitch' or 'frequency'"}
+
+        result = quasi_steady_flap(params)
+
+        axs[0, 0].plot(
+            result["t"], result["L"],
+            color=colors[idx], label=f"{val}"
+        )
+        axs[0, 1].plot(result["t"], result["D"], color=colors[idx])
+        axs[1, 0].plot(result["t"], result["P"], color=colors[idx])
+        axs[1, 1].plot(result["t"], result["eta"], color=colors[idx])
+        axs[2, 0].plot(result["t"], result["theta_deg"], color=colors[idx])
+        axs[2, 1].plot(result["t"], result["x_pos"], color=colors[idx])
 
     axs[0, 0].set_title("Lift")
     axs[0, 1].set_title("Drag")
@@ -148,14 +161,9 @@ def sweep_steps(req: SweepStepsRequest):
         ax.set_xlabel("Time (s)")
         ax.grid(True)
 
-    legend_title = "Pitch Sweep (deg)" if sweep_type == "pitch" else "Frequency Sweep (Hz)"
-    axs[0, 0].legend(title=legend_title)
+    axs[0, 0].legend(
+        title=f"{req.sweep_type.capitalize()} Sweep"
+    )
 
-    buf = io.BytesIO()
-    plt.tight_layout()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    plt.close(fig)
-
-    img_base64 = base64.b64encode(buf.read()).decode("utf-8")
-    return {"plot_base64": img_base64}
+    img_b64 = fig_to_base64(fig)
+    return {"plot_base64": img_b64}
