@@ -2,6 +2,7 @@ import io
 import base64
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +11,7 @@ from pydantic import BaseModel
 from physics import quasi_steady_flap
 from run_simulation import base_params
 
-# Set backend AFTER imports to avoid flake8 E402
+# Use non-interactive backend
 plt.switch_backend("Agg")
 
 
@@ -35,8 +36,8 @@ class SimRequest(BaseModel):
 
 
 class SweepStepsRequest(BaseModel):
-    sweep_type: str          # "pitch" or "frequency"
-    base: float              # base value (deg for pitch, Hz for freq)
+    sweep_type: str
+    base: float
     freq_hz: float
     pitch_deg: float
     step: float
@@ -47,13 +48,23 @@ class SweepStepsRequest(BaseModel):
 # ------------------------- Helper -------------------------
 
 def fig_to_base64(fig):
-    """Convert a Matplotlib figure to base64 PNG string."""
+    """Convert Matplotlib figure to base64 PNG."""
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
     buf.seek(0)
-    img_str = base64.b64encode(buf.read()).decode("utf-8")
+    encoded = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
-    return img_str
+    return encoded
+
+
+def apply_plot_styling(ax):
+    """Apply black background and tick reduction."""
+    ax.set_facecolor("black")
+    ax.xaxis.set_major_locator(MaxNLocator(6))
+    ax.grid(True, color="gray", alpha=0.3)
+
+
+LINE_COLORS = ["lime", "orange", "yellow", "cyan", "violet"]
 
 
 # ------------------------- Endpoints -------------------------
@@ -73,29 +84,28 @@ def simulate_plot(req: SimRequest):
 
     result = quasi_steady_flap(params)
 
-    fig, axs = plt.subplots(3, 2, figsize=(10, 10), dpi=90)
+    fig, axs = plt.subplots(3, 2, figsize=(11, 10), dpi=100)
+    fig.patch.set_facecolor("black")
 
-    axs[0, 0].plot(result["t"], result["L"])
-    axs[0, 0].set_title("Lift")
+    titles_units = [
+        ("Lift (N)", result["L"]),
+        ("Drag (N)", result["D"]),
+        ("Power (W)", result["P"]),
+        ("Efficiency (η)", result["eta"]),
+        ("Pitch Angle (deg)", result["theta_deg"]),
+        ("Stroke Position (m)", result["x_pos"])
+    ]
 
-    axs[0, 1].plot(result["t"], result["D"])
-    axs[0, 1].set_title("Drag")
+    for ax, (title, data), color in zip(
+        axs.flat, titles_units, LINE_COLORS
+    ):
+        ax.plot(result["t"], data, color=color, linewidth=1.8)
+        ax.set_title(title, color="white")
+        ax.set_xlabel("Time (s)", color="white")
+        ax.tick_params(colors="white")
+        apply_plot_styling(ax)
 
-    axs[1, 0].plot(result["t"], result["P"])
-    axs[1, 0].set_title("Power")
-
-    axs[1, 1].plot(result["t"], result["eta"])
-    axs[1, 1].set_title("Efficiency")
-
-    axs[2, 0].plot(result["t"], result["theta_deg"])
-    axs[2, 0].set_title("Pitch Angle")
-
-    axs[2, 1].plot(result["t"], result["x_pos"])
-    axs[2, 1].set_title("Stroke Position")
-
-    for ax in axs.flat:
-        ax.set_xlabel("Time (s)")
-        ax.grid(True)
+    fig.subplots_adjust(hspace=0.38, wspace=0.30)
 
     return {"plot_base64": fig_to_base64(fig)}
 
@@ -110,8 +120,8 @@ def sweep_steps(req: SweepStepsRequest):
         req.base + 2 * req.step
     ]
 
-    fig, axs = plt.subplots(3, 2, figsize=(10, 10), dpi=90)
-    colors = plt.cm.viridis(np.linspace(0.0, 1.0, len(values)))
+    fig, axs = plt.subplots(3, 2, figsize=(11, 10), dpi=100)
+    fig.patch.set_facecolor("black")
 
     for idx, val in enumerate(values):
         params = base_params.copy()
@@ -121,34 +131,49 @@ def sweep_steps(req: SweepStepsRequest):
         if req.sweep_type == "pitch":
             params["pitch_amp"] = np.deg2rad(val)
             params["f"] = req.freq_hz
-
         elif req.sweep_type == "frequency":
             params["pitch_amp"] = np.deg2rad(req.pitch_deg)
             params["f"] = val
-
         else:
             return {"error": "sweep_type must be 'pitch' or 'frequency'"}
 
         r = quasi_steady_flap(params)
+        color = LINE_COLORS[idx]
 
-        axs[0, 0].plot(r["t"], r["L"], color=colors[idx], label=f"{val}")
-        axs[0, 1].plot(r["t"], r["D"], color=colors[idx])
-        axs[1, 0].plot(r["t"], r["P"], color=colors[idx])
-        axs[1, 1].plot(r["t"], r["eta"], color=colors[idx])
-        axs[2, 0].plot(r["t"], r["theta_deg"], color=colors[idx])
-        axs[2, 1].plot(r["t"], r["x_pos"], color=colors[idx])
+        axs[0, 0].plot(r["t"], r["L"], color=color, label=f"{val}")
+        axs[0, 1].plot(r["t"], r["D"], color=color)
+        axs[1, 0].plot(r["t"], r["P"], color=color)
+        axs[1, 1].plot(r["t"], r["eta"], color=color)
+        axs[2, 0].plot(r["t"], r["theta_deg"], color=color)
+        axs[2, 1].plot(r["t"], r["x_pos"], color=color)
 
-    axs[0, 0].set_title("Lift")
-    axs[0, 1].set_title("Drag")
-    axs[1, 0].set_title("Power")
-    axs[1, 1].set_title("Efficiency")
-    axs[2, 0].set_title("Pitch Angle")
-    axs[2, 1].set_title("Stroke Position")
+    titles = [
+        "Lift (N)", "Drag (N)",
+        "Power (W)", "Efficiency (η)",
+        "Pitch Angle (deg)", "Stroke Position (m)"
+    ]
 
-    for ax in axs.flat:
-        ax.set_xlabel("Time (s)")
-        ax.grid(True)
+    for ax, title in zip(axs.flat, titles):
+        ax.set_title(title, color="white")
+        ax.set_xlabel("Time (s)", color="white")
+        ax.tick_params(colors="white")
+        apply_plot_styling(ax)
 
-    axs[0, 0].legend(title=f"{req.sweep_type.capitalize()} Sweep")
+    # Legend centered at top
+    fig.legend(
+        title=f"{req.sweep_type.capitalize()} Sweep",
+        title_fontsize=12,
+        fontsize=10,
+        loc="upper center",
+        ncol=5,
+        frameon=False,
+        labelcolor="white"
+    )
+
+    fig.subplots_adjust(
+        hspace=0.38,
+        wspace=0.30,
+        top=0.90  # Leaves room for legend
+    )
 
     return {"plot_base64": fig_to_base64(fig)}
