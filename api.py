@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from physics import quasi_steady_flap
 from run_simulation import base_params
 
-# Use non-interactive backend
 plt.switch_backend("Agg")
 
 
@@ -45,10 +44,10 @@ class SweepStepsRequest(BaseModel):
     t_end: float
 
 
-# ------------------------- Helper -------------------------
+# ------------------------- Helper Functions -------------------------
 
 def fig_to_base64(fig):
-    """Convert Matplotlib figure to base64 PNG."""
+    """Convert Matplotlib figure to base64 PNG string."""
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
     buf.seek(0)
@@ -57,11 +56,12 @@ def fig_to_base64(fig):
     return encoded
 
 
-def apply_plot_styling(ax):
-    """Apply black background and tick reduction."""
+def apply_axes_style(ax):
+    """Standardize styling for dark plots."""
     ax.set_facecolor("black")
     ax.xaxis.set_major_locator(MaxNLocator(6))
     ax.grid(True, color="gray", alpha=0.3)
+    ax.tick_params(colors="white")
 
 
 LINE_COLORS = ["lime", "orange", "yellow", "cyan", "violet"]
@@ -87,23 +87,32 @@ def simulate_plot(req: SimRequest):
     fig, axs = plt.subplots(3, 2, figsize=(11, 10), dpi=100)
     fig.patch.set_facecolor("black")
 
-    titles_units = [
-        ("Lift (N)", result["L"]),
-        ("Drag (N)", result["D"]),
-        ("Power (W)", result["P"]),
-        ("Efficiency (η)", result["eta"]),
-        ("Pitch Angle (deg)", result["theta_deg"]),
-        ("Stroke Position (m)", result["x_pos"])
+    titles = [
+        "Lift vs Time", "Drag vs Time",
+        "Power vs Time", "Efficiency vs Time",
+        "Pitch Angle vs Time", "Stroke Position vs Time"
     ]
 
-    for ax, (title, data), color in zip(
-        axs.flat, titles_units, LINE_COLORS
+    ylabels = [
+        "Lift (N)", "Drag (N)",
+        "Power (W)", "Efficiency (η)",
+        "Pitch (deg)", "Stroke (m)"
+    ]
+
+    data_series = [
+        result["L"], result["D"],
+        result["P"], result["eta"],
+        result["theta_deg"], result["x_pos"]
+    ]
+
+    for ax, title, ylab, data, color in zip(
+        axs.flat, titles, ylabels, data_series, LINE_COLORS
     ):
         ax.plot(result["t"], data, color=color, linewidth=1.8)
         ax.set_title(title, color="white")
+        ax.set_ylabel(ylab, color="white")
         ax.set_xlabel("Time (s)", color="white")
-        ax.tick_params(colors="white")
-        apply_plot_styling(ax)
+        apply_axes_style(ax)
 
     fig.subplots_adjust(hspace=0.38, wspace=0.30)
 
@@ -131,16 +140,18 @@ def sweep_steps(req: SweepStepsRequest):
         if req.sweep_type == "pitch":
             params["pitch_amp"] = np.deg2rad(val)
             params["f"] = req.freq_hz
-        elif req.sweep_type == "frequency":
+            label_val = f"{val}°"
+            legend_unit = "(deg)"
+        else:
             params["pitch_amp"] = np.deg2rad(req.pitch_deg)
             params["f"] = val
-        else:
-            return {"error": "sweep_type must be 'pitch' or 'frequency'"}
+            label_val = f"{val} Hz"
+            legend_unit = "(Hz)"
 
         r = quasi_steady_flap(params)
         color = LINE_COLORS[idx]
 
-        axs[0, 0].plot(r["t"], r["L"], color=color, label=f"{val}")
+        axs[0, 0].plot(r["t"], r["L"], color=color, label=label_val)
         axs[0, 1].plot(r["t"], r["D"], color=color)
         axs[1, 0].plot(r["t"], r["P"], color=color)
         axs[1, 1].plot(r["t"], r["eta"], color=color)
@@ -148,23 +159,28 @@ def sweep_steps(req: SweepStepsRequest):
         axs[2, 1].plot(r["t"], r["x_pos"], color=color)
 
     titles = [
-        "Lift (N)", "Drag (N)",
-        "Power (W)", "Efficiency (η)",
-        "Pitch Angle (deg)", "Stroke Position (m)"
+        "Lift vs Time", "Drag vs Time",
+        "Power vs Time", "Efficiency vs Time",
+        "Pitch Angle vs Time", "Stroke Position vs Time"
     ]
 
-    for ax, title in zip(axs.flat, titles):
-        ax.set_title(title, color="white")
-        ax.set_xlabel("Time (s)", color="white")
-        ax.tick_params(colors="white")
-        apply_plot_styling(ax)
+    ylabels = [
+        "Lift (N)", "Drag (N)",
+        "Power (W)", "Efficiency (η)",
+        "Pitch (deg)", "Stroke (m)"
+    ]
 
-    # Legend centered at top
+    for ax, title, ylab in zip(axs.flat, titles, ylabels):
+        ax.set_title(title, color="white")
+        ax.set_ylabel(ylab, color="white")
+        ax.set_xlabel("Time (s)", color="white")
+        apply_axes_style(ax)
+
     fig.legend(
-        title=f"{req.sweep_type.capitalize()} Sweep",
-        title_fontsize=12,
-        fontsize=10,
+        title=f"{req.sweep_type.capitalize()} Sweep {legend_unit}",
         loc="upper center",
+        fontsize=10,
+        title_fontsize=12,
         ncol=5,
         frameon=False,
         labelcolor="white"
@@ -173,7 +189,7 @@ def sweep_steps(req: SweepStepsRequest):
     fig.subplots_adjust(
         hspace=0.38,
         wspace=0.30,
-        top=0.90  # Leaves room for legend
+        top=0.90
     )
 
     return {"plot_base64": fig_to_base64(fig)}
