@@ -1,9 +1,21 @@
 function getInputs() {
+
+    let f = parseFloat(document.getElementById("freq").value);
+    let pitch = parseFloat(document.getElementById("pitch").value);
+    let step = parseFloat(document.getElementById("step").value);
+    let t_end = parseFloat(document.getElementById("tend").value);
+
+    // Render bug fix — ensure no NaN
+    if ([f, pitch, step, t_end].some(v => isNaN(v))) {
+        alert("Please enter valid numeric values in all fields.");
+        throw new Error("Invalid input");
+    }
+
     return {
-        f: parseFloat(document.getElementById("freq").value),
-        pitch_deg: parseFloat(document.getElementById("pitch").value),
-        step: parseFloat(document.getElementById("step").value),
-        t_end: parseFloat(document.getElementById("tend").value)
+        f,
+        pitch_deg: pitch,
+        step,
+        t_end
     };
 }
 
@@ -12,7 +24,9 @@ function showPlot(base64img) {
         "data:image/png;base64," + base64img;
 }
 
+
 // ------------------- SINGLE SIM -------------------
+
 async function runSingle() {
     const inp = getInputs();
 
@@ -32,7 +46,9 @@ async function runSingle() {
     showPlot(data.plot_base64);
 }
 
+
 // ------------------- PITCH SWEEP -------------------
+
 async function runPitchSweep() {
     const inp = getInputs();
 
@@ -55,7 +71,9 @@ async function runPitchSweep() {
     showPlot(data.plot_base64);
 }
 
+
 // ------------------- FREQUENCY SWEEP -------------------
+
 async function runFreqSweep() {
     const inp = getInputs();
 
