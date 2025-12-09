@@ -44,7 +44,7 @@ class SweepStepsRequest(BaseModel):
 
 def fig_to_base64(fig):
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+    fig.savefig(buf, format="png", bbox_inches="tight", dpi=80)
     buf.seek(0)
     img = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
