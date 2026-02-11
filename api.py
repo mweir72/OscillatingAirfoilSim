@@ -1,5 +1,5 @@
 """
-Flapping-wing simulation FastAPI backend (fixed & cleaned).
+Flapping-wing simulation FastAPI backend
 """
 
 from run_simulation import base_params
@@ -16,14 +16,14 @@ import matplotlib
 matplotlib.use("Agg")
 
 
-# ------------------------- FastAPI Setup -------------------------
+# FastAPI Setup
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# ------------------------- Data Models -------------------------
+# Data Models
 
 class SimRequest(BaseModel):
     f: float
@@ -40,7 +40,7 @@ class SweepStepsRequest(BaseModel):
     t_end: float
 
 
-# ------------------------- Helper -------------------------
+# Helper
 
 def fig_to_base64(fig):
     buf = io.BytesIO()
@@ -51,14 +51,14 @@ def fig_to_base64(fig):
     return img
 
 
-# ------------------------- Endpoints -------------------------
+# Endpoints
 
 @app.get("/")
 def serve_ui():
     return FileResponse("static/index.html")
 
 
-# ------------------- SINGLE SIMULATION -------------------
+# SINGLE SIMULATION
 
 @app.post("/simulate_plot")
 def simulate_plot(req: SimRequest):
@@ -93,7 +93,7 @@ def simulate_plot(req: SimRequest):
     return {"plot_base64": fig_to_base64(fig)}
 
 
-# ------------------- SWEEP SIMULATION -------------------
+# SWEEP SIMULATION
 
 @app.post("/sweep_steps")
 def sweep_steps(req: SweepStepsRequest):
