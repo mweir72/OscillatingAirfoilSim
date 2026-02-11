@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ------------------- SINGLE SIM -------------------
+    //SINGLE SIM
     async function runSingleHandler() {
         console.log("Run single simulation clicked");
         const inp = getInputs();
@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ------------------- PITCH SWEEP -------------------
+    // PITCH SWEEP
     async function runPitchSweepHandler() {
         console.log("Run pitch sweep clicked");
         const inp = getInputs();
@@ -96,7 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ------------------- FREQUENCY SWEEP -------------------
+    // FREQUENCY SWEEP
     async function runFreqSweepHandler() {
         console.log("Run frequency sweep clicked");
         const inp = getInputs();
@@ -116,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Expose handlers globally so inline onclick works (Safari-safe)
+    // Safari Work Around
     window.runSingle = runSingleHandler;
     window.runPitchSweep = runPitchSweepHandler;
     window.runFreqSweep = runFreqSweepHandler;
