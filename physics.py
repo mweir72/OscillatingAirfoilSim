@@ -76,7 +76,7 @@ def quasi_steady_flap(params):
     D = q * S * CD
 
     P = D * U
-    P[P == 0] = 1e-12   
+    P[P == 0] = 1e-12
 
     eta = (L * U) / P
 
