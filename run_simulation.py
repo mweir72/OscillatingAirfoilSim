@@ -2,9 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from physics import quasi_steady_flap
 
-# ============================================================
-# ---------------------- CONFIGURATION ------------------------
-# ============================================================
+# CONFIGURATION
+
 
 # Choose run type:
 #   "single"
@@ -37,9 +36,7 @@ stroke_sweep = [0.001, 0.002, 0.003, 0.004, 0.005]
 pitch_sweep_deg = [15, 30, 45, 60, 75]
 pitch_sweep = np.deg2rad(pitch_sweep_deg)
 
-# ============================================================
-# -------------------- RUN SINGLE SIM -------------------------
-# ============================================================
+# RUN SINGLE SIM
 
 
 def run_single():
@@ -77,9 +74,7 @@ def run_single():
     plt.tight_layout()
     plt.show()
 
-# ============================================================
-# -------------------- GENERIC SWEEP PLOTTER ------------------
-# ============================================================
+# GENERIC SWEEP PLOTTER
 
 
 def run_sweep(label, values, param_key):
@@ -126,9 +121,8 @@ def run_sweep(label, values, param_key):
     plt.show()
 
 
-# ============================================================
-# ----------------------- MAIN EXECUTION ----------------------
-# ============================================================
+# MAIN EXECUTION
+
 if __name__ == "__main__":
 
     if mode == "single":
