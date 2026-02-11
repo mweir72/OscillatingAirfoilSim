@@ -4,7 +4,7 @@ from run_simulation import base_params
 
 
 def test_sim_runs_without_nan():
-    # Use a short simulation for fast CI testing
+    # Short simulation for fast CI testing
     p = base_params.copy()
     p["t_end"] = 0.005
 
