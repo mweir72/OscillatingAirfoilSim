@@ -3,7 +3,7 @@ import numpy as np
 
 def quasi_steady_flap(params):
     """
-    Python translation of your MATLAB quasi_steady_flap(params) function.
+    Python translation of MATLAB quasi_steady_flap(params) function.
     Returns a dict of time histories for lift, drag, power, efficiency,
     pitch angle, stroke kinematics, etc.
     """
